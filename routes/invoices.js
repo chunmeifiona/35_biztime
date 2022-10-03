@@ -57,12 +57,24 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { amt } = req.body;
-        const results = await db.query(`UPDATE invoices SET amt=$1 WHERE id=$2
-        RETURNING id, comp_code, amt, paid, add_date, paid_date`, [amt, id]);
-        if (results.rows.length === 0) {
+        const { amt, paid } = req.body;
+        let paid_date = null;
+
+        const current = await db.query(`SELECT paid, paid_date FROM invoices WHERE id=$1`, [id]);
+        console.log(current.rows[0].paid_date)
+        if (current.rows.length === 0) {
             throw new ExpressError(`Can not find invoice with code of ${id}`, 404)
         }
+        const paidState = current.rows[0].paid;
+        if (paidState === false && paid === true) {
+            paid_date = new Date();
+        } else if (paid === false) {
+            paid_date = null;
+        } else
+            paid_date = current.rows[0].paid_date;
+        const results = await db.query(`UPDATE invoices SET amt=$1, paid=$2, paid_date=$3 WHERE id=$4
+        RETURNING id, comp_code, amt, paid, add_date, paid_date`, [amt, paid, paid_date, id]);
+
         return res.status(201).json({ invoice: results.rows[0] });
     } catch (e) {
         next(e);
